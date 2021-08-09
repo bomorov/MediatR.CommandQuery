@@ -1,0 +1,46 @@
+version: 8.6.0.{build}
+os: Visual Studio 2019
+
+environment:
+  ASPNETCORE_ENVIRONMENT: appveyor
+  COVERALLS_REPO_TOKEN:
+    secure: ErwscVDMk4aMiHXzjxykyhQrXqj8bBD/wh0TS84KbmLk0g/rhajYiOy7mTAaiIEy
+
+init:
+  - git config --global core.autocrlf input
+
+services:
+  - mssql2017
+
+dotnet_csproj:
+  patch: true
+  file: 'build\version.props'
+  version: '{version}'
+  package_version: '{version}'
+  assembly_version: '{version}'
+  file_version: '{version}'
+  informational_version: '{version}'
+
+configuration: Release
+
+install:
+  - ps: Import-Module "$env:ProgramFiles\Azure Cosmos DB Emulator\PSModules\Microsoft.Azure.CosmosDB.Emulator"
+  - ps: Start-CosmosDbEmulator
+  - dotnet tool install --global coveralls.net
+
+build_script:
+  - dotnet pack MediatR.CommandQuery.sln --configuration Release --include-symbols --include-source
+
+test_script:
+  - dotnet test MediatR.CommandQuery.sln --configuration Release /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:Exclude="[xunit*]*"
+
+after_test:
+  - csmacnz.coveralls --useRelativePaths --multiple --input "opencover=test\MediatR.CommandQuery.Tests\coverage.opencover.xml;opencover=test\MediatR.CommandQuery.EntityFrameworkCore.SqlServer.Tests\coverage.opencover.xml;opencover=test\MediatR.CommandQuery.Cosmos.Tests\coverage.opencover.xml"
+
+artifacts:
+- path: artifacts\*.*nupkg
+  name: Packages
+
+deploy:
+- provider: Environment
+  name: MyGet
